@@ -601,16 +601,14 @@ function gatherMarks()
     return
   end
   for _, station in pairs(workspace.Stations:GetChildren()) do
-    if not string.find(station.Name, "SignStation", 1, true) then
-      goto next_station
-    end
-    for _, mark in pairs(station:GetChildren()) do
-      if string.find(mark.Name, "Base", 1, true) and (mark.Position - root.Position).Magnitude <= PARTICLE_RADIUS then
-        local allowTween = autofarmMode ~= "Tween" or gatherMarksEnabled
-        approachPart(root, mark, allowTween)
+    if string.find(station.Name, "SignStation", 1, true) then
+      for _, mark in pairs(station:GetChildren()) do
+        if string.find(mark.Name, "Base", 1, true) and (mark.Position - root.Position).Magnitude <= PARTICLE_RADIUS then
+          local allowTween = autofarmMode ~= "Tween" or gatherMarksEnabled
+          approachPart(root, mark, allowTween)
+        end
       end
     end
-    ::next_station::
   end
 end
 
@@ -689,19 +687,16 @@ function collectTokensWalk()
   rootP = root
 
   for _, token in pairs(workspace.Collectibles:GetChildren()) do
-    if skipOwnPlayerPollenToken(token) then
-      goto next_token_walk
+    if not skipOwnPlayerPollenToken(token) then
+      local dist = (token.Position - root.Position).Magnitude
+      if dist <= COLLECT_TOKEN_RADIUS and not tokenHasFarmedMarker(token) then
+        markTokenFarmed(token)
+        local status = collectOneToken(token, root, character)
+        if status == "done" then
+          return
+        end
+      end
     end
-    local dist = (token.Position - root.Position).Magnitude
-    if dist > COLLECT_TOKEN_RADIUS or tokenHasFarmedMarker(token) then
-      goto next_token_walk
-    end
-    markTokenFarmed(token)
-    local status = collectOneToken(token, root, character)
-    if status == "done" then
-      return
-    end
-    ::next_token_walk::
   end
 end
 
@@ -715,19 +710,13 @@ function collectTokens()
   local playerName = game.Players.LocalPlayer.Name
 
   for _, token in pairs(workspace.Collectibles:GetChildren()) do
-    if token.Name == playerName and not tokenHasFarmedMarker(token) then
-      goto next_token_snap
+    local ownUnfarmed = token.Name == playerName and not tokenHasFarmedMarker(token)
+    local tooFar = (token.Position - root.Position).Magnitude > COLLECT_TOKEN_RADIUS
+    if not ownUnfarmed and not tooFar and not tokenHasFarmedMarker(token) then
+      markTokenFarmed(token)
+      root.CFrame = token.CFrame
+      wait(0.1)
     end
-    if (token.Position - root.Position).Magnitude > COLLECT_TOKEN_RADIUS then
-      goto next_token_snap
-    end
-    if tokenHasFarmedMarker(token) then
-      goto next_token_snap
-    end
-    markTokenFarmed(token)
-    root.CFrame = token.CFrame
-    wait(0.1)
-    ::next_token_snap::
   end
 end
 
@@ -1291,18 +1280,16 @@ local function tryCollectReadyBadges()
   end
   refreshPlayerStats()
   for _, setName in ipairs(BADGE_POLLEN_SETS) do
-    if not badgeSetNeedsFarm(setName) then
-      goto next_badge_collect
+    if badgeSetNeedsFarm(setName) then
+      local data = Badges.GetSetData(setName, playerStats)
+      if data and data.Collectible == true then
+        pcall(function()
+          Badges.ClientCollect(setName)
+        end)
+        task.wait(0.35)
+        refreshPlayerStats()
+      end
     end
-    local data = Badges.GetSetData(setName, playerStats)
-    if data and data.Collectible == true then
-      pcall(function()
-        Badges.ClientCollect(setName)
-      end)
-      task.wait(0.35)
-      refreshPlayerStats()
-    end
-    ::next_badge_collect::
   end
 end
 
@@ -2047,160 +2034,154 @@ function autofarmMainLoop()
     wait(0.1)
     local player = game.Players.LocalPlayer
     local character = player.Character
-    if not character then
-      goto continue_loop
-    end
-
-    if badgeAutofarmEnabled then
-      applyBadgeAutofarmTarget()
-    end
-
-    if autofarmEnabled and not autofarmLoopActive then
-      if not badgeAutofarmEnabled then
-        if gatherMarksEnabled then
-          gatherMarks()
-        end
-        if popBubblesEnabled then
-          collectBubbles()
-        end
-        if gatherFlamesEnabled then
-          gatherFlames()
-        end
-        if coconutCatcherEnabled then
-          catchCoconuts()
-        end
-      elseif autoDigEnabled then
-        swingCollectorTool()
+    if character then
+      if badgeAutofarmEnabled then
+        applyBadgeAutofarmTarget()
       end
-    end
 
-    if not autofarmEnabled then
-      goto continue_loop
-    end
-
-    local progress = character:FindFirstChild("ProgressLabel", true)
-    if progress and progress.Text then
-      local capFromUi = tonumber(progress.Text:match("%d+$"))
-      if capFromUi then
-        maxpollen = capFromUi
-      end
-    end
-
-    local fieldCframe = FIELD_CFRAMES[targetField]
-    if fieldCframe then
-      fieldpos = fieldCframe
-    end
-
-    local pollen = tonumber(player.CoreStats.Pollen.Value)
-    local cap = tonumber(maxpollen)
-    if not pollen or not cap then
-      goto continue_loop
-    end
-
-    if pollen < cap then
-      if not fieldReady then
-        Tween(1, fieldpos)
-        wait(1)
-        convertCount = convertCount + 1
-        fieldReady = true
-        if autoSprinklerEnabled and not sprinklersPlaced then
-          sprinklersPlaced = placeEquippedSprinklers()
-        end
-      elseif fieldReady then
-        if autoSprinklerEnabled and not sprinklersPlaced then
-          sprinklersPlaced = placeEquippedSprinklers()
-        end
-        if math.random(0, 75) == 74 then
-          Tween(1, fieldpos)
-          wait(1)
-        end
-        if autofarmMode == "Walk" then
-          collectTokensWalk()
-        else
-          collectTokens()
+      if autofarmEnabled and not autofarmLoopActive then
+        if not badgeAutofarmEnabled then
+          if gatherMarksEnabled then
+            gatherMarks()
+          end
+          if popBubblesEnabled then
+            collectBubbles()
+          end
+          if gatherFlamesEnabled then
+            gatherFlames()
+          end
+          if coconutCatcherEnabled then
+            catchCoconuts()
+          end
+        elseif autoDigEnabled then
+          swingCollectorTool()
         end
       end
-      autofarmLoopActive = false
-      wait(0.2)
-    else
-      if autoInstantConverterEnabled then
-        local toy = game.ReplicatedStorage.Events.ToyEvent
-        for _, converterName in ipairs({ "Instant Converter", "Instant Converter B", "Instant Converter C" }) do
-          if tonumber(player.CoreStats.Pollen.Value) + 1 > cap then
-            toy:FireServer(converterName)
-            if tonumber(player.CoreStats.Pollen.Value) + 1 < cap then
+
+      local progress = character:FindFirstChild("ProgressLabel", true)
+      if progress and progress.Text then
+        local capFromUi = tonumber(progress.Text:match("%d+$"))
+        if capFromUi then
+          maxpollen = capFromUi
+        end
+      end
+
+      local fieldCframe = FIELD_CFRAMES[targetField]
+      if fieldCframe then
+        fieldpos = fieldCframe
+      end
+
+      local pollen = tonumber(player.CoreStats.Pollen.Value)
+      local cap = tonumber(maxpollen)
+      local holdCycle = false
+      if autofarmEnabled and pollen and cap then
+        if pollen < cap then
+          if not fieldReady then
+            Tween(1, fieldpos)
+            wait(1)
+            convertCount = convertCount + 1
+            fieldReady = true
+            if autoSprinklerEnabled and not sprinklersPlaced then
+              sprinklersPlaced = placeEquippedSprinklers()
+            end
+          elseif fieldReady then
+            if autoSprinklerEnabled and not sprinklersPlaced then
+              sprinklersPlaced = placeEquippedSprinklers()
+            end
+            if math.random(0, 75) == 74 then
+              Tween(1, fieldpos)
               wait(1)
-              goto continue_loop
+            end
+            if autofarmMode == "Walk" then
+              collectTokensWalk()
+            else
+              collectTokens()
             end
           end
+          autofarmLoopActive = false
+          wait(0.2)
+        else
+          if autoInstantConverterEnabled then
+            local toy = game.ReplicatedStorage.Events.ToyEvent
+            for _, converterName in ipairs({ "Instant Converter", "Instant Converter B", "Instant Converter C" }) do
+              if tonumber(player.CoreStats.Pollen.Value) + 1 > cap then
+                toy:FireServer(converterName)
+                if tonumber(player.CoreStats.Pollen.Value) + 1 < cap then
+                  wait(1)
+                  holdCycle = true
+                  break
+                end
+              end
+            end
+          end
+
+          if not holdCycle then
+            fieldReady = false
+            sprinklersPlaced = false
+            autofarmLoopActive = true
+            Tween(1, player.SpawnPos.Value)
+
+            if webhookAfterConvertEnabled then
+              local honeyText = player.PlayerGui.ScreenGui.MeterHUD.HoneyMeter.Bar.TextLabel.Text
+              local utc = os.date("!*t", os.time())
+              sendDiscordWebhook({
+                color = "3454955",
+                title = "Webhook stats",
+                description = "Honey = " .. honeyText .. "\n\nConverting times: " .. tostring(convertCount),
+                author = { name = player.Name },
+                timestamp = string.format(
+                  "%d-%d-%dT%02d:%02d:%02dZ",
+                  utc.year,
+                  utc.month,
+                  utc.day,
+                  utc.hour,
+                  utc.min,
+                  utc.sec
+                ),
+              })
+            end
+
+            honeyConverting = false
+            wait(4)
+            fixHoneyConversion()
+            wait(4)
+          end
         end
       end
 
-      fieldReady = false
-      sprinklersPlaced = false
-      autofarmLoopActive = true
-      Tween(1, player.SpawnPos.Value)
+      if autofarmEnabled and not holdCycle and pollen and cap then
+        local hum = character:FindFirstChildOfClass("Humanoid")
+        if hum and not deathConnection then
+          deathConnection = hum.Died:Connect(function()
+            if not autofarmEnabled then
+              return
+            end
+            playerdied = true
+            autofarmEnabled = false
+            badgeAutofarmEnabled = false
+            autofarmLoopActive = false
+            fieldReady = false
+            deathConnection = nil
+          end)
+        end
 
-      if webhookAfterConvertEnabled then
-        local honeyText = player.PlayerGui.ScreenGui.MeterHUD.HoneyMeter.Bar.TextLabel.Text
-        local utc = os.date("!*t", os.time())
-        sendDiscordWebhook({
-          color = "3454955",
-          title = "Webhook stats",
-          description = "Honey = " .. honeyText .. "\n\nConverting times: " .. tostring(convertCount),
-          author = { name = player.Name },
-          timestamp = string.format(
-            "%d-%d-%dT%02d:%02d:%02dZ",
-            utc.year,
-            utc.month,
-            utc.day,
-            utc.hour,
-            utc.min,
-            utc.sec
-          ),
-        })
-      end
-
-      honeyConverting = false
-      wait(4)
-      fixHoneyConversion()
-      wait(4)
-    end
-
-    if autofarmEnabled then
-      local hum = character:FindFirstChildOfClass("Humanoid")
-      if hum and not deathConnection then
-        deathConnection = hum.Died:Connect(function()
-          if not autofarmEnabled then
-            return
+        if playerdied then
+          wait(10)
+          playerdied = false
+          autofarmEnabled = true
+          if badgeFarmCurrentSet ~= "" then
+            badgeAutofarmEnabled = true
           end
-          playerdied = true
-          autofarmEnabled = false
-          badgeAutofarmEnabled = false
+          Tween(1, fieldpos)
           autofarmLoopActive = false
-          fieldReady = false
+          fieldReady = true
+          if autoSprinklerEnabled then
+            sprinklersPlaced = placeEquippedSprinklers()
+          end
           deathConnection = nil
-        end)
+        end
       end
     end
-
-    if playerdied then
-      wait(10)
-      playerdied = false
-      autofarmEnabled = true
-      if badgeFarmCurrentSet ~= "" then
-        badgeAutofarmEnabled = true
-      end
-      Tween(1, fieldpos)
-      autofarmLoopActive = false
-      fieldReady = true
-      if autoSprinklerEnabled then
-        sprinklersPlaced = placeEquippedSprinklers()
-      end
-      deathConnection = nil
-    end
-
-    ::continue_loop::
   end
 end
 
