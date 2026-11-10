@@ -1,0 +1,31 @@
+{
+  "field": "Pine Tree Forest",
+  "autofarmMode": "Walk",
+  "farmWalkSpeed": 70,
+  "autofarmEnabled": true,
+  "autoDigEnabled": true,
+  "autoSprinklerEnabled": true,
+  "autoInstantConverterEnabled": false,
+  "badgeAutofarm": true,
+  "badgeAutoCollect": true,
+  "badgePriority": "Lowest Progress",
+  "badgePinnedField": "Dandelion Field",
+  "badgeMaxTier": 5,
+  "autoFreeAntpass": true,
+  "miscellaneous": {
+    "dispensers": ["Free Ant Pass Dispenser"]
+  },
+  "autoFarm": {
+    "enabled": true,
+    "field": "Pine Tree Forest",
+    "autoDig": true,
+    "autoSprinkler": true,
+    "farm_badges": true,
+    "badge_priority": "Lowest Progress",
+    "badge_level": "Grandmaster"
+  },
+  "settings": {
+    "movement_method": "Walk",
+    "walkspeed": 70
+  }
+}

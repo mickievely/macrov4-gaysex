@@ -24,7 +24,10 @@ do
   end
 end
 
-local FINITY_UI_URLS = { "https://raw.githubusercontent.com/infinitylua/Luascripts/main/finityuifork.lua" }
+local FINITY_UI_URLS = {
+  "https://raw.githubusercontent.com/mickievely/macrov4-gaysex/main/finityuifork.lua",
+  "https://raw.githubusercontent.com/infinitylua/Luascripts/main/finityuifork.lua",
+}
 if type(_G.FINITY_UI_URL) == "string" then
   table.insert(FINITY_UI_URLS, 1, _G.FINITY_UI_URL)
 end
@@ -87,12 +90,12 @@ local function loadFinityUiFromFile()
 end
 
 local function loadFinityUi()
+  local localLib = loadFinityUiFromFile()
+  if localLib then
+    return localLib
+  end
   if _G.FINITY_LOCAL_ONLY == true then
-    local localLib = loadFinityUiFromFile()
-    if localLib then
-      return localLib
-    end
-    error("Finity UI load failed — add macrov4/backup/finityuifork.lua to Volt workspace")
+    error("Finity UI load failed — add macrov4/finityuifork.lua to Volt workspace")
   end
   for _, url in ipairs(FINITY_UI_URLS) do
     if type(url) == "string" then
@@ -330,6 +333,19 @@ local function applyMacrov4Config(cfg)
       farmWalkSpeed = tonumber(settings.walkspeed) or farmWalkSpeed
     end
   end
+
+  if cfg.autoFreeAntpass ~= nil then
+    autoFreeAntpassEnabled = cfg.autoFreeAntpass == true
+  end
+  local misc = cfg.miscellaneous
+  if type(misc) == "table" and type(misc.dispensers) == "table" then
+    for _, name in pairs(misc.dispensers) do
+      if type(name) == "string" and string.find(string.lower(name), "ant pass", 1, true) then
+        autoFreeAntpassEnabled = true
+        break
+      end
+    end
+  end
 end
 
 if type(_G.MACROV4_CONFIG) == "table" then
@@ -447,6 +463,7 @@ function snapshotMacroConfig()
     badgePriority = badgeFarmPriority,
     badgePinnedField = badgeFarmPinnedField,
     badgeMaxTier = badgeMaxTier,
+    autoFreeAntpass = autoFreeAntpassEnabled == true,
   }
 end
 
@@ -459,6 +476,7 @@ function applyAccountDefaults()
   autoSprinklerEnabled = true
   badgeAutofarmEnabled = true
   badgeAutoCollect = true
+  autoFreeAntpassEnabled = true
 end
 
 function loadMacroConfig(fileName)
@@ -873,21 +891,37 @@ end
 
 local function swingCollectorTool()
   local player = game.Players.LocalPlayer
-  local click = findToolClickEvent(player, true)
-  if click then
-    click:FireServer()
-    return true
+  local character = player.Character
+  local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+  local tool = findCollectorTool(player)
+  if tool and humanoid and tool.Parent ~= character then
+    pcall(function()
+      humanoid:EquipTool(tool)
+    end)
   end
-  local ok = pcall(function()
+  if tool then
+    pcall(function()
+      tool:Activate()
+    end)
+    local click = toolClickEvent(tool, true)
+    if click then
+      pcall(function()
+        click:FireServer()
+      end)
+    end
+  end
+  pcall(function()
     GameEvents.ClientCall("ToolCollect")
   end)
-  if ok then
-    return true
-  end
   pcall(function()
     LocalCollect.Run()
   end)
-  return false
+  local vim = game:GetService("VirtualInputManager")
+  pcall(function()
+    vim:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+    vim:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+  end)
+  return tool ~= nil
 end
 
 
@@ -1449,10 +1483,10 @@ function ui_Auto_Dig(checked)
     return
   end
   autoDigLoopRunning = true
-  task.spawn(function()
+  spawn(function()
     while autoDigEnabled do
-      swingCollectorTool()
-      task.wait(0.1)
+      pcall(swingCollectorTool)
+      wait(0.1)
     end
     autoDigLoopRunning = false
   end)
@@ -2217,6 +2251,9 @@ if badgeAutofarmEnabled then
   ui_Badge_Autofarm(true)
 elseif autofarmEnabled then
   ui_Autofarm(true)
+end
+if autoFreeAntpassEnabled then
+  ui_Auto_Free_Antpass(true)
 end
 
 wait(2)
